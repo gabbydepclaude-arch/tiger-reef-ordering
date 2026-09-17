@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiger Reef Trading — Supplier Ordering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F7F4EE;
+    --paper-raised:#FFFFFF;
+    --ink:#211F1A;
+    --ink-soft:#6E665A;
+    --line:#E4DDCF;
+    --sidebar:#20281F;
+    --sidebar-line:#3A4235;
+    --sidebar-ink:#F1EFE7;
+    --sidebar-ink-soft:#A9B3A0;
+    --amber:#C97A2E;
+    --amber-ink:#FFFFFF;
+    --amber-dim:#F2E2CC;
+    --good:#3C6E4F;
+    --good-bg:#E7F0E6;
+    --bad:#B0402A;
+    --bad-bg:#F7E5DF;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(33,31,26,0.06), 0 4px 14px rgba(33,31,26,0.07);
+    color-scheme: light;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size:15px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'Roboto Mono', 'SFMono-Regular', Consolas, monospace;}
+
+  /* ---------- Shell ---------- */
+  .shell{
+    display:grid;
+    grid-template-columns: 260px 1fr;
+    min-height:100vh;
+  }
+  @media (max-width: 860px){
+    .shell{grid-template-columns: 1fr;}
+    .sidebar{display:none;}
+    .sidebar.open{display:flex;}
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background:var(--sidebar);
+    color:var(--sidebar-ink);
+    display:flex;
+    flex-direction:column;
+    position:sticky;
+    top:0;
+    height:100vh;
+    overflow-y:auto;
+    z-index:20;
+  }
+  .brand{
+    padding:22px 20px 14px 20px;
+    border-bottom:1px solid var(--sidebar-line);
+  }
+  .brand-name{font-weight:800; font-size:17px; letter-spacing:0.2px;}
+  .brand-sub{color:var(--sidebar-ink-soft); font-size:12.5px; margin-top:3px;}
+  .sidebar-search{padding:14px 16px 6px 16px;}
+  .sidebar-search input{
+    width:100%;
+    background:#182018;
+    border:1px solid var(--sidebar-line);
+    color:var(--sidebar-ink);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:13.5px;
+    font-family:inherit;
+  }
+  .sidebar-search input::placeholder{color:var(--sidebar-ink-soft);}
+  .sidebar-search input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+  .supplier-list{list-style:none; margin:6px 0 16px 0; padding:0 8px; flex:1;}
+  .supplier-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 12px; border-radius:8px; cursor:pointer;
+    color:var(--sidebar-ink-soft); font-size:13.8px;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .supplier-item:hover{background:#28311F; color:var(--sidebar-ink);}
+  .supplier-item.active{background:var(--amber); color:#fff; font-weight:600;}
+  .supplier-count{font-size:11.5px; opacity:0.8;}
+  .supplier-item.active .supplier-count{opacity:0.95;}
+  .sidebar-foot{
+    padding:14px 16px 18px 16px;
+    border-top:1px solid var(--sidebar-line);
+    font-size:12px;
+    color:var(--sidebar-ink-soft);
+  }
+  .name-row{display:flex; align-items:center; gap:8px; margin-bottom:4px;}
+  .name-row strong{color:var(--sidebar-ink); font-weight:600;}
+  .link-btn{
+    background:none; border:none; color:var(--amber); cursor:pointer;
+    font-size:12px; padding:0; font-family:inherit; text-decoration:underline;
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    display:flex; align-items:center; gap:14px;
+    padding:14px 22px; border-bottom:1px solid var(--line);
+    background:var(--paper-raised);
+    position:sticky; top:0; z-index:10;
+  }
+  .mobile-toggle{display:none; background:var(--sidebar); color:#fff; border:none; border-radius:8px; padding:8px 11px; font-size:14px; cursor:pointer;}
+  @media (max-width:860px){.mobile-toggle{display:inline-flex;}}
+  .tabs{display:flex; gap:4px; background:var(--paper); border-radius:9px; padding:4px;}
+  .tab-btn{
+    border:none; background:none; padding:8px 16px; border-radius:6px;
+    font-family:inherit; font-size:13.8px; font-weight:600; color:var(--ink-soft); cursor:pointer;
+  }
+  .tab-btn.active{background:var(--paper-raised); color:var(--ink); box-shadow:var(--shadow);}
+  .topbar-spacer{flex:1;}
+  .status-pill{
+    font-size:12px; padding:5px 10px; border-radius:999px; font-weight:600;
+    display:flex; align-items:center; gap:6px;
+  }
+  .status-pill.ok{background:var(--good-bg); color:var(--good);}
+  .status-pill.warn{background:var(--bad-bg); color:var(--bad);}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+  /* ---------- Main ---------- */
+  .main{padding:22px; max-width:1180px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .panel-header{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:14px; flex-wrap:wrap;}
+  .panel-header h1{font-size:21px; margin:0; font-weight:800;}
+  .panel-header .meta{color:var(--ink-soft); font-size:13px;}
+
+  .search-row{margin-bottom:14px;}
+  .search-row input{
+    width:100%; max-width:420px; padding:9px 12px; border-radius:8px;
+    border:1px solid var(--line); font-family:inherit; font-size:14px; background:#fff;
+  }
+  .search-row input:focus{outline:2px solid var(--amber); outline-offset:1px;}
+
+  .content-grid{
+    display:grid; grid-template-columns: 1fr 320px; gap:20px; align-items:start;
+  }
+  @media (max-width:1000px){ .content-grid{grid-template-columns:1fr;} }
+
+  .item-table{width:100%; border-collapse:collapse; background:var(--paper-raised); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);}
+  .item-table th{
+    text-align:left; font-size:11.5px; color:var(--ink-soft); font-weight:700;
+    padding:10px 12px; border-bottom:1px solid var(--line); background:#FBF9F4;
+  }
+  .item-table td{padding:9px 12px; border-bottom:1px solid var(--line); font-size:13.8px; vertical-align:middle;}
+  .item-table tr:last-child td{border-bottom:none;}
+  .item-table tr.hidden-item{opacity:0.45;}
+  .item-desc{font-weight:600;}
+  .item-code{color:var(--ink-soft); font-size:12px;}
+  .price-val{font-variant-numeric:tabular-nums;}
+  .price-edit-btn{
+    background:none;border:none;cursor:pointer;color:var(--ink-soft);
+    font-size:12px; margin-left:6px; text-decoration:underline; padding:0;
+  }
+  .price-input{width:76px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:13px;}
+  .qty-input{width:64px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:13.5px;}
+  .add-btn{
+    background:var(--sidebar); color:#fff; border:none; border-radius:7px;
+    padding:7px 13px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .add-btn:hover{background:#2A3423;}
+  .row-actions{display:flex; align-items:center; gap:8px;}
+  .hide-toggle{font-size:11.5px; color:var(--ink-soft); cursor:pointer; user-select:none; white-space:nowrap;}
+
+  .empty-note{padding:30px; text-align:center; color:var(--ink-soft); font-size:14px;}
+
+  /* ---------- Cart ---------- */
+  .cart{
+    background:var(--paper-raised); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:16px; position:sticky; top:78px;
+  }
+  .cart h2{font-size:15.5px; margin:0 0 4px 0;}
+  .cart-supplier{font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;}
+  .cart-line{display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);}
+  .cart-line:last-of-type{border-bottom:none;}
+  .cart-line-desc{font-size:13px; font-weight:600;}
+  .cart-line-sub{font-size:11.5px; color:var(--ink-soft);}
+  .cart-line-right{text-align:right; white-space:nowrap;}
+  .cart-remove{background:none; border:none; color:var(--bad); cursor:pointer; font-size:11.5px; padding:0; text-decoration:underline; margin-top:2px;}
+  .cart-total-row{display:flex; justify-content:space-between; font-weight:800; font-size:14.5px; padding-top:12px; margin-top:8px; border-top:2px solid var(--ink);}
+  .cart-empty{color:var(--ink-soft); font-size:13px; padding:18px 0; text-align:center;}
+  .cart-actions{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
+  .btn-primary{
+    background:var(--amber); color:#fff; border:none; border-radius:8px;
+    padding:11px 14px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .btn-primary:disabled{opacity:0.5; cursor:not-allowed;}
+  .btn-secondary{
+    background:none; border:1.5px solid var(--line); border-radius:8px;
+    padding:9px 14px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--ink);
+  }
+  .cart-note{font-size:11.5px; color:var(--ink-soft); margin-top:8px; line-height:1.4;}
+  .btn-whatsapp{
+    background:#25D366; color:#fff; border:none; border-radius:8px;
+    padding:11px 14px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+  }
+  .btn-whatsapp:disabled{opacity:0.5; cursor:not-allowed;}
+  .btn-whatsapp:hover:not(:disabled){background:#1EBE5A;}
+  .supplier-contact-row{font-size:12.5px; color:var(--ink-soft); margin:-4px 0 16px 0; display:flex; align-items:center; gap:4px;}
+
+  /* ---------- History ---------- */
+  .order-card{
+    background:var(--paper-raised); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:16px 18px; margin-bottom:12px;
+  }
+  .order-card-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; cursor:pointer;}
+  .order-supplier{font-weight:700; font-size:15px;}
+  .order-meta{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+  .order-total{font-weight:800; font-size:15px; white-space:nowrap;}
+  .order-items{margin-top:12px; padding-top:12px; border-top:1px solid var(--line); display:none;}
+  .order-items.open{display:block;}
+  .order-item-row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0;}
+  .order-item-row span:first-child{color:var(--ink-soft);}
+  .order-card-foot{display:flex; justify-content:flex-end; gap:10px; margin-top:10px;}
+  .link-danger{background:none;border:none;color:var(--bad);font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;padding:0;}
+
+  /* ---------- Toast ---------- */
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(16px);
+    background:var(--sidebar); color:#fff; padding:11px 18px; border-radius:8px;
+    font-size:13.5px; font-weight:600; box-shadow:var(--shadow);
+    opacity:0; pointer-events:none; transition:opacity 0.18s ease, transform 0.18s ease;
+    z-index:100;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(20,18,14,0.5); display:none;
+    align-items:center; justify-content:center; z-index:200; padding:20px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{background:#fff; border-radius:12px; padding:26px; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+  .modal h2{margin:0 0 8px 0; font-size:17px;}
+  .modal p{color:var(--ink-soft); font-size:13.5px; margin:0 0 14px 0;}
+  .modal input{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-family:inherit; font-size:14.5px; margin-bottom:14px;}
+  .modal-copy-box{
+    background:#FBF9F4; border:1px solid var(--line); border-radius:8px; padding:12px;
+    font-family:'Roboto Mono', monospace; font-size:12px; white-space:pre-wrap; max-height:260px; overflow-y:auto; margin-bottom:14px;
+  }
+  .modal-actions{display:flex; gap:10px; justify-content:flex-end;}
+
+  ::selection{background:var(--amber-dim);}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-name">Tiger Reef Trading</div>
+      <div class="brand-sub">Supplier Ordering</div>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" id="supplierSearch" placeholder="Search suppliers or items…">
+    </div>
+    <ul class="supplier-list" id="supplierList"></ul>
+    <div class="sidebar-foot">
+      <div class="name-row"><span>Ordering as&nbsp;</span><strong id="viewerNameLabel">—</strong></div>
+      <button class="link-btn" id="changeNameBtn">change name</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div>
+    <div class="topbar">
+      <button class="mobile-toggle" id="mobileToggle">Suppliers ☰</button>
+      <div class="tabs">
+        <button class="tab-btn active" data-view="order">Order</button>
+        <button class="tab-btn" data-view="history">History</button>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="status-pill warn" id="syncStatus"><span class="dot"></span><span>Connecting…</span></div>
+    </div>
+
+    <div class="main">
+
+      <!-- Order view -->
+      <div class="view active" id="view-order">
+        <div class="panel-header">
+          <h1 id="supplierTitle">Choose a supplier</h1>
+          <div class="meta" id="supplierMeta"></div>
+        </div>
+        <div class="supplier-contact-row" id="supplierWhatsAppRow"></div>
+        <div class="search-row">
+          <input type="text" id="itemSearch" placeholder="Filter items…">
+        </div>
+        <div class="content-grid">
+          <div id="itemListWrap"><div class="empty-note">Pick a supplier from the left to see what you've ordered from them before.</div></div>
+
+          <div class="cart">
+            <h2>Current order</h2>
+            <div class="cart-supplier" id="cartSupplierLabel">No supplier selected</div>
+            <div id="cartLines"><div class="cart-empty">No items added yet.</div></div>
+            <div class="cart-total-row" id="cartTotalRow" style="display:none;">
+              <span>Estimated total</span><span id="cartTotal">R0.00</span>
+            </div>
+            <div class="cart-actions">
+              <button class="btn-whatsapp" id="sendWhatsAppBtn" disabled>Send via WhatsApp</button>
+              <button class="btn-primary" id="copyOrderBtn" disabled>Copy order for email</button>
+              <button class="btn-secondary" id="clearCartBtn" disabled>Clear order</button>
+            </div>
+            <div class="cart-note">Prices here are for your own tracking and are saved with the order — the message sent to the supplier lists only items and quantities, no pricing.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History view -->
+      <div class="view" id="view-history">
+        <div class="panel-header">
+          <h1>Order history</h1>
+          <div class="meta" id="historyMeta"></div>
+        </div>
+        <div id="historyList"><div class="empty-note">No orders logged yet.</div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Name modal -->
+<div class="modal-overlay" id="nameModal">
+  <div class="modal">
+    <h2>Who's ordering?</h2>
+    <p>Your name is attached to any order you log, so the team knows who placed it.</p>
+    <input type="text" id="nameInput" placeholder="Your name" maxlength="40">
+    <div class="modal-actions">
+      <button class="btn-primary" id="nameSaveBtn">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Copy order modal -->
+<div class="modal-overlay" id="copyModal">
+  <div class="modal" style="max-width:520px;">
+    <h2 id="copyModalSupplier">Order text</h2>
+    <p id="copyModalDesc">Copied to your clipboard — paste it into an email to the supplier. You can also log it below so the team can see it was ordered.</p>
+    <div class="modal-copy-box" id="copyModalText"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="copyModalCloseBtn">Close</button>
+      <button class="btn-primary" id="copyModalLogBtn">Log this order</button>
+    </div>
+  </div>
+</div>
+
+<!-- WhatsApp number modal -->
+<div class="modal-overlay" id="waModal">
+  <div class="modal">
+    <h2>Add WhatsApp contact</h2>
+    <p>Enter <strong id="waModalSupplier"></strong>'s WhatsApp number in international format, digits only — no spaces, dashes, or the leading 0. For a South African cell number like 082 123 4567, enter <span class="mono">27821234567</span>.</p>
+    <input type="text" id="waNumberInput" placeholder="27821234567">
+    <div class="modal-actions">
+      <button class="btn-secondary" id="waModalCancelBtn">Cancel</button>
+      <button class="btn-primary" id="waModalSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CATALOG = {"Alliance Foods":[{"code":"CON-009","description":"APRICOT FLAVOURED JAM 25KG","unitPrice":561.2,"lastOrdered":"2026-05-28","timesOrdered":1},{"code":"FRU-002","description":"BLUEBERRIES 1KG","unitPrice":47.83,"lastOrdered":"2026-06-15","timesOrdered":2},{"code":"","description":"Baking Powder Craft","unitPrice":269.0,"lastOrdered":"2026-09-09","timesOrdered":4},{"code":"","description":"Baking Powder Craft (0x1kg)","unitPrice":265.0,"lastOrdered":"2026-08-19","timesOrdered":1},{"code":"","description":"Bicarbonate Of Soda","unitPrice":198.0,"lastOrdered":"2026-06-12","timesOrdered":1},{"code":"3193769","description":"COCOA POWDER KB-1170AP -25KG","unitPrice":132.43,"lastOrdered":"2026-05-28","timesOrdered":1},{"code":"","description":"Cocoa Powder Pad","unitPrice":2879.0,"lastOrdered":"2026-06-12","timesOrdered":1},{"code":"","description":"Cocoa Powder Pad (25kg)","unitPrice":2879.0,"lastOrdered":"2026-08-19","timesOrdered":1},{"code":"","description":"Cocoa Powder Pad 25kg","unitPrice":2879.0,"lastOrdered":"2026-07-28","timesOrdered":1},{"code":"","description":"Frozen Blueberries IQF","unitPrice":478.26,"lastOrdered":"2026-09-03","timesOrdered":2},{"code":"","description":"Frozen Blueberries IQF 0x1kg","unitPrice":478.26,"lastOrdered":"2026-07-10","timesOrdered":1},{"code":"","description":"Golden Syrup 25kg","unitPrice":450.0,"lastOrdered":"2026-09-03","timesOrdered":1},{"code":"","description":"Jam Apricot","unitPrice":488.0,"lastOrdered":"2026-07-10","timesOrdered":2},{"code":"","description":"Jam Apricot (25kg)","unitPrice":488.0,"lastOrdered":"2026-08-19","timesOrdered":1},{"code":"","description":"Jam Apricot 25kg","unitPrice":488.0,"lastOrdered":"2026-08-03","timesOrdered":2},{"code":"","description":"JamApricot","unitPrice":488.0,"lastOrdered":"2026-09-07","timesOrdered":1},{"code":"SYRG02","description":"SYRUP GOLDEN 5KG","unitPrice":22.45,"lastOrdered":"2026-05-28","timesOrdered":1}],"Bill Riley Meat":[{"code":"","description":"Burgers (5kg)","unitPrice":null,"lastOrdered":null,"timesOrdered":0}],"Cab Foods":[{"code":"CON-009","description":"APRICOT FLAVOURED JAM 25KG","unitPrice":756.5,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"MEA-001","description":"BACON PRIME CUT 1KG","unitPrice":87.99,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"FRU-002","description":"BLUEBERRIES 1KG","unitPrice":69.56,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"BAK-003","description":"BROWN SUGAR 25KG","unitPrice":486.46,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"DAI-001","description":"CAB CREME 5 LT","unitPrice":243.47,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"FLOUR125","description":"CAKE FLOUR 12.5KG","unitPrice":12.0,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"BAK-004","description":"CARAMEL SPREAD 3 KG","unitPrice":233.6,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"BAK-005","description":"CASTOR SUGAR 5 KG","unitPrice":130.43,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"CHOCDKPCS001","description":"CHOC DARK PIECES 10KG","unitPrice":772.17,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"CHOCMKPCS001","description":"CHOC MILK PIECES 10KG","unitPrice":719.98,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"CON-005","description":"CHOCKEX NIBS 10KG","unitPrice":76.69,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"3193769","description":"COCOA POWDER KB-1170AP -25KG","unitPrice":204.17,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"DAI-003","description":"EGGS","unitPrice":2.43,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"BAK-015","description":"ESSENCE MOIRS VANILLA 2L","unitPrice":50.86,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"PAN-001","description":"FAT WOODEN MARGARINE 25KG","unitPrice":666.95,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"BAK-011","description":"GLUCOSE SYRUP 7KG","unitPrice":224.1,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"GLYC01","description":"GLYCERINE 6KG","unitPrice":111.29,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"BAK-002","description":"HERCULES BAKING POWDER 20KG","unitPrice":917.37,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"PKG-002b","description":"MUF CASING 14/12 BLEACH/1000","unitPrice":0.09,"lastOrdered":"2026-05-05","timesOrdered":2},{"code":"PAN-007","description":"SUNFLOWER OIL (201)","unitPrice":39.6,"lastOrdered":"2026-04-30","timesOrdered":1},{"code":"BAK-016","description":"WHITE REFINE SUGAR 25KG","unitPrice":469.56,"lastOrdered":"2026-04-30","timesOrdered":1}],"Caltex Fast Forward":[{"code":"","description":"LPG","unitPrice":288.7,"lastOrdered":"2026-04-30","timesOrdered":1}],"Cape Aqua Minerale Pty (Ltd":[{"code":"FG-1L-CA-ST","description":"1L CAPE AQUA STILL","unitPrice":7.97,"lastOrdered":"2026-05-05","timesOrdered":1},{"code":"","description":"1L CAPE AQUA STILL - 12PK","unitPrice":105.22,"lastOrdered":"2026-09-07","timesOrdered":2},{"code":"FG-600ML-FLAV","description":"600ML CAPE AQUA -FLAVOUR","unitPrice":5.86,"lastOrdered":"2026-05-05","timesOrdered":1},{"code":"","description":"600ML CAPE AQUA GREEN APPLE 12-PACK","unitPrice":85.22,"lastOrdered":"2026-09-07","timesOrdered":1},{"code":"","description":"600ML CAPE AQUA LITCHI 12-PACK","unitPrice":85.22,"lastOrdered":"2026-09-07","timesOrdered":1},{"code":"","description":"600ML CAPE AQUA NAARTJIE 12-PACK","unitPrice":85.22,"lastOrdered":"2026-09-07","timesOrdered":1},{"code":"","description":"600ML CAPE AQUA PASSION FRUIT 12-PACK","unitPrice":85.22,"lastOrdered":"2026-09-07","timesOrdered":1},{"code":"","description":"600ML CAPE AQUA STILL - 24PK","unitPrice":134.78,"lastOrdered":"2026-09-07","timesOrdered":2},{"code":"","description":"600ML Cape Aqua Green Apple - 12-Pack","unitPrice":85.22,"lastOrdered":"2026-07-02","timesOrdered":1},{"code":"","description":"600ML Cape Aqua Litchi - 12-Pack","unitPrice":85.22,"lastOrdered":"2026-07-02","timesOrdered":1},{"code":"","description":"600ML Cape Aqua Naartjie - 12-Pack","unitPrice":85.22,"lastOrdered":"2026-07-02","timesOrdered":1},{"code":"","description":"600ML Cape Aqua Passion Fruit - 12-Pack","unitPrice":85.22,"lastOrdered":"2026-07-02","timesOrdered":1}],"Coca Cola Penisula Beverage (Pty) Ltd":[{"code":"","description":"1000ML COCA COLA (code 1091)","unitPrice":181.3,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"1000ML COKE ZERO (code 1478)","unitPrice":140.09,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"1000ml Coca Cola (1 unit)","unitPrice":181.3,"lastOrdered":"2026-08-28","timesOrdered":1},{"code":"","description":"1000ml Coca Cola (bottle)","unitPrice":181.3,"lastOrdered":"2026-07-31","timesOrdered":2},{"code":"","description":"300ML COCA COLA (code 6372)","unitPrice":171.3,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"300ml Coca Cola (bottle)","unitPrice":171.3,"lastOrdered":"2026-07-17","timesOrdered":1},{"code":"","description":"440ML COCA COLA (code 7579)","unitPrice":240.17,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"440ML COKE ZERO (code 7583)","unitPrice":240.17,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"440ML FANTA ORANGE (code 6207)","unitPrice":240.17,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"440ml Coca Cola (bottle)","unitPrice":240.17,"lastOrdered":"2026-07-17","timesOrdered":1},{"code":"","description":"440ml Coca Cola (can)","unitPrice":240.17,"lastOrdered":"2026-07-31","timesOrdered":1},{"code":"","description":"500ML COCA COLA (code 1050)","unitPrice":132.17,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"500ML P/ADE M/B (code 7865)","unitPrice":274.61,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"500ml Cappy (1 unit)","unitPrice":132.17,"lastOrdered":"2026-08-28","timesOrdered":1},{"code":"","description":"500ml Coca Cola (3 units)","unitPrice":132.17,"lastOrdered":"2026-08-28","timesOrdered":1},{"code":"","description":"500ml Coca Cola (bottle)","unitPrice":132.17,"lastOrdered":"2026-07-17","timesOrdered":1},{"code":"","description":"500ml Coca Cola (bottles)","unitPrice":132.17,"lastOrdered":"2026-07-31","timesOrdered":1},{"code":"","description":"500ml Fanta (1 unit)","unitPrice":132.17,"lastOrdered":"2026-08-28","timesOrdered":1},{"code":"","description":"500ml Piade Jag (soft drink)","unitPrice":274.61,"lastOrdered":"2026-07-31","timesOrdered":1},{"code":"","description":"Assorted beverage products (incl. deposits & containers)","unitPrice":1608.15,"lastOrdered":"2026-08-14","timesOrdered":1},{"code":"","description":"Assorted soft drinks and crate/container deposits","unitPrice":2700.39,"lastOrdered":"2026-07-10","timesOrdered":1},{"code":"","description":"Beverage products (various SKUs)","unitPrice":2560.13,"lastOrdered":"2026-08-21","timesOrdered":1},{"code":"","description":"Beverage purchases from Coca-Cola Peninsula Beverage","unitPrice":2698.92,"lastOrdered":"2026-08-07","timesOrdered":1},{"code":"JUC-001","description":"CAPPY STILL - APPLE 100% FRUIT JUICE (330ML)","unitPrice":270.87,"lastOrdered":"2026-07-03","timesOrdered":4},{"code":"SDR-004","description":"COCA-COLA - ORIGINAL TASTE (1L)","unitPrice":181.3,"lastOrdered":"2026-07-03","timesOrdered":13},{"code":"SDR-006","description":"COCA-COLA - ORIGINAL TASTE (300ML)","unitPrice":6.21,"lastOrdered":"2026-06-12","timesOrdered":6},{"code":"SDR-005","description":"COCA-COLA - ORIGINAL TASTE (500ML)","unitPrice":132.17,"lastOrdered":"2026-07-03","timesOrdered":11},{"code":"SDR-001","description":"COCA-COLA - ZERO SUGAR (LUNIKO) (440ML)","unitPrice":240.17,"lastOrdered":"2026-07-03","timesOrdered":11},{"code":"SDR-003","description":"COLD DRINK  (2L)","unitPrice":22.51,"lastOrdered":"2026-05-29","timesOrdered":3},{"code":"CRATE2000ML X06","description":"CRATE 2000ML  X06","unitPrice":4.99,"lastOrdered":"2026-05-29","timesOrdered":6},{"code":"","description":"Collapsed document total (see collapsedLineItem)","unitPrice":1539.72,"lastOrdered":"2026-07-24","timesOrdered":1},{"code":"","description":"Container deposit (net adjustment)","unitPrice":10.0,"lastOrdered":"2026-07-17","timesOrdered":1},{"code":"","description":"Container deposits","unitPrice":88.0,"lastOrdered":"2026-08-21","timesOrdered":2},{"code":"","description":"Containers delivered (deposit)","unitPrice":36.0,"lastOrdered":"2026-08-28","timesOrdered":2},{"code":"","description":"Containers deposit/other (delivered)","unitPrice":32.02,"lastOrdered":"2026-09-11","timesOrdered":1},{"code":"","description":"Containers returned (credit)","unitPrice":36.0,"lastOrdered":"2026-07-31","timesOrdered":1},{"code":"","description":"Credit / returns","unitPrice":128.0,"lastOrdered":"2026-08-28","timesOrdered":1},{"code":"","description":"Credit adjustments (returns/rounding)","unitPrice":77.0,"lastOrdered":"2026-06-26","timesOrdered":1},{"code":"SDR-009","description":"FANTA - ORANGE (440ML)","unitPrice":240.17,"lastOrdered":"2026-07-03","timesOrdered":1},{"code":"SPT-001","description":"POWERADE - ISLAND BURST (500ML)","unitPrice":11.44,"lastOrdered":"2026-06-19","timesOrdered":5},{"code":"","description":"Products (beverages)","unitPrice":1775.45,"lastOrdered":"2026-06-26","timesOrdered":1},{"code":"","description":"Stock","unitPrice":2543.94,"lastOrdered":"2026-09-04","timesOrdered":1},{"code":"CRATE500ML X20","description":"nan","unitPrice":36.0,"lastOrdered":"2026-07-04","timesOrdered":29}],"DH Flexibles":[{"code":"","description":"30 mic BOPP bag 100 x 50 x 300","unitPrice":369.37,"lastOrdered":"2026-08-17","timesOrdered":5},{"code":"","description":"30 mic BOPP bag 180 x 50 x 350","unitPrice":646.42,"lastOrdered":"2026-07-21","timesOrdered":2},{"code":"","description":"30 mic BOPP bag 210 x 250","unitPrice":423.26,"lastOrdered":"2026-08-11","timesOrdered":1},{"code":"","description":"30 mic BOPP bag 70 x 40 x 130","unitPrice":600.22,"lastOrdered":"2026-08-27","timesOrdered":4},{"code":"","description":"30 mic BOPP bag 70 x 40 x 300","unitPrice":277.04,"lastOrdered":"2026-08-27","timesOrdered":6},{"code":"","description":"30 mic BOPP bag 80 x 50 x 400","unitPrice":435.0,"lastOrdered":"2026-08-17","timesOrdered":4},{"code":"","description":"30-100X50X300 30 mic BOPP bag 100 x 50 x 300","unitPrice":369.37,"lastOrdered":"2026-09-10","timesOrdered":1},{"code":"","description":"30-180X50X350 30 mic BOPP bag 180 x 50 x 350","unitPrice":646.42,"lastOrdered":"2026-09-10","timesOrdered":1},{"code":"","description":"30-70X40X130 30 mic BOPP bag 70 x 40 x 130","unitPrice":600.22,"lastOrdered":"2026-09-10","timesOrdered":1},{"code":"","description":"30-70X40X300 30 mic BOPP bag 70 x 40 x 300","unitPrice":277.04,"lastOrdered":"2026-09-10","timesOrdered":1},{"code":"","description":"30-80X50X400 30 mic BOPP bag 80 x 50 x 400","unitPrice":435.0,"lastOrdered":"2026-09-10","timesOrdered":1},{"code":"30-100X50X300","description":"BOPP bag 100X50X300","unitPrice":0.37,"lastOrdered":"2026-06-05","timesOrdered":5},{"code":"130X80X350","description":"BOPP bag 130X80X350 (SWISS ROLL BAG)","unitPrice":0.6,"lastOrdered":"2026-05-18","timesOrdered":1},{"code":"30-180X50X350","description":"BOPP bag 180X50X350","unitPrice":0.65,"lastOrdered":"2026-05-18","timesOrdered":2},{"code":"210X250","description":"BOPP bag 210X250","unitPrice":0.42,"lastOrdered":"2026-06-05","timesOrdered":2},{"code":"30-70X40X300","description":"BOPP bag 70X40X300","unitPrice":0.27,"lastOrdered":"2026-06-05","timesOrdered":5},{"code":"30-70X40X130","description":"BOPP bag 70x40130","unitPrice":0.12,"lastOrdered":"2026-06-05","timesOrdered":5},{"code":"30-80X50X400","description":"BOPP bag 80X50X400","unitPrice":0.43,"lastOrdered":"2026-06-05","timesOrdered":4}],"Diaryland Milk":[{"code":"","description":"1L Milk","unitPrice":null,"lastOrdered":null,"timesOrdered":0}],"Eurochoc":[{"code":"","description":"Ingredients","unitPrice":3001.73,"lastOrdered":"2026-09-03","timesOrdered":1}],"Fomo Kings Packaging":[{"code":"","description":"10kg Gatsby paper","unitPrice":190.0,"lastOrdered":"2026-07-22","timesOrdered":2},{"code":"","description":"APRONS WHITE","unitPrice":55.0,"lastOrdered":"2026-09-07","timesOrdered":2},{"code":"3187311","description":"APRONS/100","unitPrice":0.55,"lastOrdered":"2026-06-05","timesOrdered":2},{"code":"BORBIG","description":"BAG ON ROLL 300X450X500","unitPrice":33.5,"lastOrdered":"2026-06-03","timesOrdered":1},{"code":"BANA","description":"BANANA LOAF LINERS","unitPrice":0.34,"lastOrdered":"2026-06-15","timesOrdered":4},{"code":"","description":"BBQ Cater Sauce 5L","unitPrice":85.0,"lastOrdered":"2026-08-24","timesOrdered":5},{"code":"BBQSA001","description":"BBQ SAUCE","unitPrice":85.0,"lastOrdered":"2026-06-05","timesOrdered":2},{"code":"BLACKBAGS","description":"BLACK BAGS","unitPrice":1.05,"lastOrdered":"2026-05-13","timesOrdered":1},{"code":"0","description":"BROWN VINEGAR","unitPrice":50.0,"lastOrdered":"2026-04-16","timesOrdered":1},{"code":"","description":"Banana loaf liners (500)","unitPrice":170.0,"lastOrdered":"2026-07-22","timesOrdered":4},{"code":"","description":"Brown vinegar 5L","unitPrice":50.0,"lastOrdered":"2026-08-31","timesOrdered":2},{"code":"","description":"Brownie 5's (500)","unitPrice":450.0,"lastOrdered":"2026-08-24","timesOrdered":2},{"code":"","description":"Chilli cater source 5L","unitPrice":89.95,"lastOrdered":"2026-07-29","timesOrdered":1},{"code":"","description":"Colddrink wrapped straws 6mm","unitPrice":165.0,"lastOrdered":"2026-07-22","timesOrdered":1},{"code":"","description":"Credit","unitPrice":45.8,"lastOrdered":"2026-08-13","timesOrdered":1},{"code":"FOMO20","description":"FOMO 20 (4X75)","unitPrice":0.68,"lastOrdered":"2026-06-05","timesOrdered":3},{"code":"","description":"FOMO 20 White (4 x 75)","unitPrice":205.0,"lastOrdered":"2026-08-24","timesOrdered":2},{"code":"","description":"FOMO 20 White (4 x 75) - portion","unitPrice":205.0,"lastOrdered":"2026-07-06","timesOrdered":1},{"code":"PKG-003","description":"FOMO 29 B (4X250)","unitPrice":0.42,"lastOrdered":"2026-06-05","timesOrdered":3},{"code":"","description":"FOMO 29 Black (4 x 250)","unitPrice":430.0,"lastOrdered":"2026-08-24","timesOrdered":3},{"code":"","description":"FOMO 5 White (4 x 125)","unitPrice":200.0,"lastOrdered":"2026-08-24","timesOrdered":1},{"code":"","description":"FOMO 6 White (4 x 125)","unitPrice":205.0,"lastOrdered":"2026-07-29","timesOrdered":1},{"code":"FOMO70","description":"FOMO 70 B (4X250)","unitPrice":0.34,"lastOrdered":"2026-06-05","timesOrdered":4},{"code":"","description":"FOMO 70 Black (4 x 250)","unitPrice":340.0,"lastOrdered":"2026-07-29","timesOrdered":2},{"code":"","description":"FOMO 70 Black (4 x 250) (pack)","unitPrice":340.0,"lastOrdered":"2026-06-24","timesOrdered":1},{"code":"","description":"FOMO 70 Black (4 x 250) - portion","unitPrice":340.0,"lastOrdered":"2026-07-06","timesOrdered":1},{"code":"","description":"FOMO 70 black (4x250) liners","unitPrice":340.0,"lastOrdered":"2026-08-31","timesOrdered":1},{"code":"","description":"FOMOS WHITE (4 x 125)","unitPrice":200.0,"lastOrdered":"2026-09-07","timesOrdered":1},{"code":"","description":"Fomo 70 black (4 x 250) - partial unit","unitPrice":340.0,"lastOrdered":"2026-07-22","timesOrdered":1},{"code":"GATSBYPAPER01","description":"GATSBY PAPER","unitPrice":180.0,"lastOrdered":"2026-06-03","timesOrdered":3},{"code":"GPREAMS","description":"GP REAMS","unitPrice":120.0,"lastOrdered":"2026-06-03","timesOrdered":1},{"code":"","description":"GP Reams","unitPrice":120.0,"lastOrdered":"2026-08-24","timesOrdered":2},{"code":"3198172","description":"GP2","unitPrice":0.2,"lastOrdered":"2026-06-10","timesOrdered":3},{"code":"","description":"GP2","unitPrice":195.0,"lastOrdered":"2026-06-17","timesOrdered":1},{"code":"","description":"GP2 product","unitPrice":195.0,"lastOrdered":"2026-07-15","timesOrdered":1},{"code":"","description":"Gatsby Paper 10kg","unitPrice":190.0,"lastOrdered":"2026-08-24","timesOrdered":2},{"code":"","description":"Large banana loaf","unitPrice":245.0,"lastOrdered":"2026-07-08","timesOrdered":1},{"code":"MAYSA001","description":"MAYO SAUCE","unitPrice":235.01,"lastOrdered":"2026-06-05","timesOrdered":1},{"code":"MIDIBAG","description":"MIDI BAGS","unitPrice":0.48,"lastOrdered":"2026-06-15","timesOrdered":6},{"code":"","description":"MIDI MULTI COLOUR BAGS","unitPrice":48.0,"lastOrdered":"2026-09-07","timesOrdered":4},{"code":"MINIBAGS","description":"MINI BAGS","unitPrice":0.35,"lastOrdered":"2026-06-15","timesOrdered":5},{"code":"","description":"MINI MULTI COLOUR BAGS","unitPrice":35.0,"lastOrdered":"2026-09-07","timesOrdered":5},{"code":"MOPCAPS","description":"MOP CAPS","unitPrice":0.6,"lastOrdered":"2026-06-10","timesOrdered":4},{"code":"","description":"MOP CAPS WHITE","unitPrice":59.95,"lastOrdered":"2026-09-07","timesOrdered":2},{"code":"PERISA001","description":"PERI PERI SAUCE","unitPrice":118.0,"lastOrdered":"2026-04-29","timesOrdered":1},{"code":"PERSA001","description":"PERONAISE SAUCE","unitPrice":100.0,"lastOrdered":"2026-04-29","timesOrdered":1},{"code":"","description":"Peri-Peri Cater Source 5L","unitPrice":118.0,"lastOrdered":"2026-07-06","timesOrdered":1},{"code":"","description":"Red stick (mini)","unitPrice":35.0,"lastOrdered":"2026-07-22","timesOrdered":1},{"code":"SERV002","description":"SERVIETTES","unitPrice":0.07,"lastOrdered":"2026-06-10","timesOrdered":2},{"code":"PKG-005","description":"SILCONE BAKING PAPER","unitPrice":1.3,"lastOrdered":"2026-06-10","timesOrdered":2},{"code":"","description":"Seafood Dippa Sauce 5L","unitPrice":105.0,"lastOrdered":"2026-07-06","timesOrdered":1},{"code":"","description":"Serviettes 200 x 300 1ply (3000)","unitPrice":207.0,"lastOrdered":"2026-07-29","timesOrdered":1},{"code":"","description":"Silicone baking paper","unitPrice":650.0,"lastOrdered":"2026-08-31","timesOrdered":2},{"code":"","description":"Small Banana Loaf","unitPrice":195.0,"lastOrdered":"2026-06-24","timesOrdered":1},{"code":"MAC002","description":"T12651 MCARON CS (350)","unitPrice":1.17,"lastOrdered":"2026-05-06","timesOrdered":2},{"code":"","description":"T389 - Brownie 5's (500)","unitPrice":450.0,"lastOrdered":"2026-07-15","timesOrdered":1},{"code":"","description":"T389 - Brownie 5's (CL) (500)","unitPrice":450.0,"lastOrdered":"2026-07-08","timesOrdered":2},{"code":"CON-008","description":"T389 BROWNIE 5'S CL 500","unitPrice":0.9,"lastOrdered":"2026-06-10","timesOrdered":8},{"code":"","description":"T389 Brownie 5's (500)","unitPrice":450.0,"lastOrdered":"2026-07-29","timesOrdered":1},{"code":"SKI001","description":"T522 SCONE 4UP BLACK MUFFIN (500)","unitPrice":0.9,"lastOrdered":"2026-05-13","timesOrdered":1},{"code":"TOMSA001","description":"TOMATOE SAUCE","unitPrice":72.0,"lastOrdered":"2026-06-05","timesOrdered":2},{"code":"","description":"Tangy mayo 5kg","unitPrice":240.0,"lastOrdered":"2026-08-31","timesOrdered":3},{"code":"","description":"Thai Sweet Chilli 5L","unitPrice":125.0,"lastOrdered":"2026-06-24","timesOrdered":1},{"code":"","description":"Tomato cater sauce 5L","unitPrice":72.0,"lastOrdered":"2026-07-29","timesOrdered":1},{"code":"","description":"packaging","unitPrice":517.5,"lastOrdered":"2026-09-02","timesOrdered":1}],"Forms & Labels Solutions Pty ltd":[{"code":"LABLE40x30","description":"Label 40x30","unitPrice":0.03,"lastOrdered":"2026-04-20","timesOrdered":1},{"code":"RIBBON","description":"RIBBON WAX","unitPrice":30.0,"lastOrdered":"2026-04-20","timesOrdered":1}],"Golden Yolk Eggs":[{"code":"","description":"CRACKS: LOOSE (30 DOZ)","unitPrice":15.0,"lastOrdered":"2026-09-11","timesOrdered":6},{"code":"","description":"CRACKS: LOOSE (30 DOZ) - eggs","unitPrice":15.0,"lastOrdered":"2026-07-17","timesOrdered":1},{"code":"","description":"Cracks: loose eggs (360 dozen)","unitPrice":13.04,"lastOrdered":"2026-07-09","timesOrdered":1},{"code":"DAI-003","description":"EGGS","unitPrice":1.29,"lastOrdered":"2026-07-01","timesOrdered":6},{"code":"","description":"Ingredients","unitPrice":5400.0,"lastOrdered":"2026-09-04","timesOrdered":1},{"code":"","description":"correction","unitPrice":0.14,"lastOrdered":"2026-07-01","timesOrdered":1}],"Group 35 Foods":[{"code":"3381902","description":"BREAD FLOUR","unitPrice":9.36,"lastOrdered":"2026-06-15","timesOrdered":4},{"code":"","description":"Best Bake - Cake 12.5kg","unitPrice":133.0,"lastOrdered":"2026-09-11","timesOrdered":4},{"code":"","description":"Best Bake - White 12.5kg","unitPrice":134.5,"lastOrdered":"2026-07-31","timesOrdered":1},{"code":"FLOUR125","description":"CAKE FLOUR 12.5KG","unitPrice":10.64,"lastOrdered":"2026-06-15","timesOrdered":4},{"code":"RUSW001","description":"SWARTLAND RUSKS (500G)","unitPrice":30.43,"lastOrdered":"2026-05-08","timesOrdered":2}],"HS Oils":[{"code":"","description":"005 - Sunflower x20lt","unitPrice":600.0,"lastOrdered":"2026-08-11","timesOrdered":2},{"code":"","description":"007 - Tripple Refined","unitPrice":620.0,"lastOrdered":"2026-08-03","timesOrdered":1},{"code":"","description":"013 - Golden Sun Oil","unitPrice":600.0,"lastOrdered":"2026-08-03","timesOrdered":1},{"code":"","description":"1x20L Spane oil","unitPrice":160.0,"lastOrdered":"2026-08-31","timesOrdered":1},{"code":"","description":"1x20L Triple refined oil","unitPrice":620.0,"lastOrdered":"2026-08-31","timesOrdered":1},{"code":"","description":"7x20L Sunflower oil","unitPrice":600.0,"lastOrdered":"2026-08-31","timesOrdered":1},{"code":"","description":"Bulk cooking oil (7 units)","unitPrice":521.74,"lastOrdered":"2026-07-06","timesOrdered":1},{"code":"GOLDOIL","description":"GOLDEN SUN OIL","unitPrice":620.0,"lastOrdered":"2026-06-22","timesOrdered":6},{"code":"","description":"Golden Soya oil","unitPrice":600.0,"lastOrdered":"2026-08-17","timesOrdered":1},{"code":"","description":"Golden Sun Oil (6x20L)","unitPrice":3440.0,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Golden cooking oil","unitPrice":4200.0,"lastOrdered":"2026-08-24","timesOrdered":1},{"code":"PAN-007","description":"SUNFLOWER OIL (201)","unitPrice":30.0,"lastOrdered":"2026-06-22","timesOrdered":12},{"code":"","description":"Sunflower Oil","unitPrice":4173.91,"lastOrdered":"2026-07-20","timesOrdered":1},{"code":"","description":"Sunflower oil (2 x 20L)","unitPrice":2100.0,"lastOrdered":"2026-07-13","timesOrdered":1},{"code":"","description":"Sunflower x20lt","unitPrice":600.0,"lastOrdered":"2026-07-28","timesOrdered":1},{"code":"","description":"Triple refined oil","unitPrice":620.0,"lastOrdered":"2026-08-17","timesOrdered":2},{"code":"","description":"Triple refined oil (1 unit)","unitPrice":539.13,"lastOrdered":"2026-07-06","timesOrdered":1},{"code":"","description":"UCO - Used Cooking Oil","unitPrice":160.0,"lastOrdered":"2026-08-03","timesOrdered":1}],"Jolly Nuts":[{"code":"","description":"Assorted nuts and confectionery (multiple SKUs)","unitPrice":1004.7,"lastOrdered":"2026-07-29","timesOrdered":1},{"code":"","description":"Cashew Nut W320 Peri Peri 100g","unitPrice":24.8,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Cashew Nut W320 Salted 100g","unitPrice":24.8,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Chocolate Coated Peanuts 100g","unitPrice":9.1,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Crackles Chevra Spicy 100g","unitPrice":5.15,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Mebos Fruit Lollies 100g","unitPrice":8.7,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Peanuts Medium Peri Peri 100g","unitPrice":6.5,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Peanuts Medium Redskin 100g","unitPrice":6.5,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Peanuts Medium Salted 100g","unitPrice":5.65,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Peanuts Pink n White 100g","unitPrice":12.17,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Peanuts Red Sugared 100g","unitPrice":10.1,"lastOrdered":"2026-07-01","timesOrdered":1},{"code":"","description":"Popcorn Caramel 100g","unitPrice":10.0,"lastOrdered":"2026-07-01","timesOrdered":1}],"L V Bakery Supplies":[{"code":"","description":"1.5kg Nescafe Ricoffy","unitPrice":275.0,"lastOrdered":"2026-07-08","timesOrdered":1},{"code":"","description":"1000 Jumbo Muffin Cups","unitPrice":200.0,"lastOrdered":"2026-08-28","timesOrdered":1},{"code":"","description":"1000 Jumbo Muffin Cups (MUF003)","unitPrice":200.0,"lastOrdered":"2026-08-04","timesOrdered":1},{"code":"","description":"1000 Muffin Cups","unitPrice":60.0,"lastOrdered":"2026-09-07","timesOrdered":6},{"code":"","description":"1000 Muffin Cups (MUF001)","unitPrice":60.0,"lastOrdered":"2026-08-04","timesOrdered":1},{"code":"","description":"1000's (165x195) Bags Gp2","unitPrice":182.5,"lastOrdered":"2026-09-01","timesOrdered":1},{"code":"","description":"1kg Bakers Mix","unitPrice":115.0,"lastOrdered":"2026-09-01","timesOrdered":4},{"code":"","description":"1kg Digestive Bran","unitPrice":18.2,"lastOrdered":"2026-08-18","timesOrdered":2},{"code":"","description":"1kg Fine salt","unitPrice":5.42,"lastOrdered":"2026-08-28","timesOrdered":1},{"code":"","description":"1lt Vanilla Essence","unitPrice":39.0,"lastOrdered":"2026-09-09","timesOrdered":5},{"code":"","description":"25kg Coconut Desiccated - Medium Fat","unitPrice":1600.0,"lastOrdered":"2026-09-01","timesOrdered":2},{"code":"","description":"25kg Corn Flour","unitPrice":360.0,"lastOrdered":"2026-07-31","timesOrdered":1},{"code":"","description":"25kg Creaming Yellow - WS","unitPrice":650.0,"lastOrdered":"2026-08-28","timesOrdered":6},{"code":"","description":"25kg Creaming Yellow -WS","unitPrice":650.0,"lastOrdered":"2026-09-09","timesOrdered":3},{"code":"","description":"5kg Baking Powder","unitPrice":120.0,"lastOrdered":"2026-07-21","timesOrdered":2},{"code":"","description":"5kg Glucose","unitPrice":190.0,"lastOrdered":"2026-04-10","timesOrdered":1},{"code":"","description":"5kg Glucose Liquid","unitPrice":190.0,"lastOrdered":"2026-09-07","timesOrdered":13},{"code":"","description":"5kg Glycerine","unitPrice":391.65,"lastOrdered":"2026-09-07","timesOrdered":4},{"code":"","description":"5kg Oats","unitPrice":109.0,"lastOrdered":"2026-07-31","timesOrdered":1},{"code":"","description":"5kg Poppy Seeds","unitPrice":512.0,"lastOrdered":"2026-09-01","timesOrdered":1},{"code":"3185531","description":"BAKERS MIX","unitPrice":38.33,"lastOrdered":"2026-05-28","timesOrdered":1},{"code":"","description":"Banana Liners","unitPrice":190.0,"lastOrdered":"2026-04-10","timesOrdered":1},{"code":"","description":"Big Cream Caramel  Spread","unitPrice":330.0,"lastOrdered":"2026-04-10","timesOrdered":1},{"code":"3185532","description":"CINNAMON GROUND","unitPrice":84.0,"lastOrdered":"2026-05-28","timesOrdered":1},{"code":"3207091","description":"COCONUT FINE 5KG","unitPrice":320.0,"lastOrdered":"2026-05-28","timesOrdered":1},{"code":"PAN-001","description":"FAT WOODEN MARGARINE 25KG","unitPrice":650.0,"lastOrdered":"2026-06-12","timesOrdered":3},{"code":"BAK-011","description":"GLUCOSE 5KG","unitPrice":190.0,"lastOrdered":"2026-07-02","timesOrdered":1},{"code":"GLYC01","description":"GLYCERINE 6KG","unitPrice":78.33,"lastOrdered":"2026-06-12","timesOrdered":2},{"code":"BAK-002","description":"HERCULES BAKING POWDER 20KG","unitPrice":480.0,"lastOrdered":"2026-06-12","timesOrdered":3},{"code":"","description":"Ingredients","unitPrice":1117.57,"lastOrdered":"2026-09-03","timesOrdered":1},{"code":"PKG-002b","description":"MUF CASING 14/12 BLEACH/1000","unitPrice":0.09,"lastOrdered":"2026-06-12","timesOrdered":4},{"code":"BAK-015","description":"VANILLA BAKING ESSENCE 1 L","unitPrice":39.0,"lastOrdered":"2026-07-02","timesOrdered":2}],"Master Pie Maker (Pty) Ltd":[{"code":"WPS","description":"Pepper Steak W/S Box","unitPrice":486.0,"lastOrdered":null,"timesOrdered":0},{"code":"WSK","description":"Steak & Kidney W/S Box","unitPrice":486.0,"lastOrdered":null,"timesOrdered":0},{"code":"WCM","description":"Chicken & Musroom W/S Box 220G","unitPrice":486.0,"lastOrdered":null,"timesOrdered":0},{"code":"WBBC","description":"Biltong & Cheese W/S 220G","unitPrice":486.0,"lastOrdered":null,"timesOrdered":0},{"code":"WBR","description":"Beef Rib W/S Box","unitPrice":486.0,"lastOrdered":null,"timesOrdered":0}],"Paaper Bites":[{"code":"SNK-014","description":"PAAPER BITES - (75G)","unitPrice":6.2,"lastOrdered":"2026-04-30","timesOrdered":1}],"Samoosa Raz":[{"code":"","description":"Samoosas (50 per box)","unitPrice":null,"lastOrdered":null,"timesOrdered":0}],"South Bakels PTY Ltd":[{"code":"","description":"BAKELS DELIGHT GOLD","unitPrice":399.5,"lastOrdered":"2026-09-07","timesOrdered":2},{"code":"CON-007","description":"BAVARIAN SUPREME 10KG","unitPrice":84.55,"lastOrdered":"2026-06-01","timesOrdered":1},{"code":"","description":"BAVARIAN SUPREME, BAG 10KG","unitPrice":845.5,"lastOrdered":"2026-08-27","timesOrdered":1},{"code":"","description":"Bakels 15% Extra","unitPrice":1190.5,"lastOrdered":"2026-08-04","timesOrdered":1},{"code":"","description":"Bakels Delight Gold (Carton 10)","unitPrice":119.85,"lastOrdered":"2026-08-27","timesOrdered":3},{"code":"","description":"Bakels Delight Gold \u2014 Carton 10","unitPrice":743.0,"lastOrdered":"2026-07-16","timesOrdered":1},{"code":"","description":"HERCULES BAKING POWDER","unitPrice":249.2,"lastOrdered":"2026-09-07","timesOrdered":1},{"code":"3201525","description":"LAMINGTON DIP RASBERRY","unitPrice":0.05,"lastOrdered":"2026-06-12","timesOrdered":2},{"code":"","description":"Leamington Choc (Bag 5kg)","unitPrice":391.7,"lastOrdered":"2026-08-27","timesOrdered":3},{"code":"","description":"Leamington Choc 5kg bag","unitPrice":391.7,"lastOrdered":"2026-06-30","timesOrdered":1},{"code":"","description":"Leamington Choc \u2014 Bag 5kg","unitPrice":391.7,"lastOrdered":"2026-07-16","timesOrdered":1},{"code":"","description":"Leamington Raspberry (Bag 5kg)","unitPrice":273.15,"lastOrdered":"2026-08-27","timesOrdered":3},{"code":"","description":"Leamington Raspberry \u2014 Bag 5kg","unitPrice":273.15,"lastOrdered":"2026-07-16","timesOrdered":1},{"code":"CON-006","description":"MALLOWHIP 6.5KG","unitPrice":54.89,"lastOrdered":"2026-06-01","timesOrdered":1},{"code":"OVAL001","description":"OVALETT","unitPrice":67.69,"lastOrdered":"2026-06-01","timesOrdered":2},{"code":"","description":"Ovalett Bucket 11.5","unitPrice":778.44,"lastOrdered":"2026-08-04","timesOrdered":1},{"code":"","description":"PIPING BAGS - LARGE","unitPrice":142.87,"lastOrdered":"2026-08-17","timesOrdered":1},{"code":"","description":"Rounding","unitPrice":0.01,"lastOrdered":"2026-07-28","timesOrdered":1},{"code":"","description":"White Glaze (Bucket 5kg)","unitPrice":478.05,"lastOrdered":"2026-07-21","timesOrdered":1}]};
+
+// ---------------- State ----------------
+let overrides = {};      // key -> {price, hidden}
+let contacts = {};       // supplierKey -> {supplier, whatsapp}
+let cart = [];           // {supplierKey, code, description, unitPrice, qty}
+let currentSupplier = null;
+let viewerName = localStorage.getItem('triOrderingName') || '';
+let orders = [];          // loaded from the API
+let pendingWhatsAppSend = false;
+
+const API_BASE = '/api/data';
+
+async function apiList(store){
+  const res = await fetch(API_BASE + '?store=' + encodeURIComponent(store));
+  if (!res.ok) throw new Error('list failed: ' + store);
+  const json = await res.json();
+  return json.items || [];
+}
+async function apiSet(store, key, data){
+  const url = API_BASE + '?store=' + encodeURIComponent(store) + (key ? ('&key=' + encodeURIComponent(key)) : '');
+  const res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+  if (!res.ok) throw new Error('set failed: ' + store);
+  return (await res.json()).key;
+}
+async function apiDelete(store, key){
+  const res = await fetch(API_BASE + '?store=' + encodeURIComponent(store) + '&key=' + encodeURIComponent(key), {method:'DELETE'});
+  if (!res.ok) throw new Error('delete failed: ' + store);
+}
+
+const SUPPLIERS = Object.keys(CATALOG).sort((a,b)=>a.localeCompare(b));
+
+function itemKey(supplier, item){
+  const base = item.code && item.code.trim() ? item.code.trim() : ('DESC::' + item.description.trim().toUpperCase());
+  return (supplier + '::' + base).toLowerCase().replace(/[^a-z0-9_:.\-]/g, '_').slice(0,180);
+}
+function supplierKey(supplier){
+  return supplier.toLowerCase().replace(/[^a-z0-9_:.\-]/g, '_').slice(0,180);
+}
+
+function fmtR(n){
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return 'R' + n.toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function effectivePrice(supplier, item){
+  const k = itemKey(supplier, item);
+  const ov = overrides[k];
+  if (ov && typeof ov.price === 'number') return ov.price;
+  return item.unitPrice;
+}
+function isHidden(supplier, item){
+  const k = itemKey(supplier, item);
+  const ov = overrides[k];
+  return !!(ov && ov.hidden);
+}
+
+// ---------------- Toast ----------------
+let toastTimer;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+// ---------------- Name modal ----------------
+function ensureName(){
+  if (!viewerName){
+    document.getElementById('nameModal').classList.add('open');
+  } else {
+    document.getElementById('viewerNameLabel').textContent = viewerName;
+  }
+}
+document.getElementById('nameSaveBtn').addEventListener('click', ()=>{
+  const v = document.getElementById('nameInput').value.trim();
+  if (!v) return;
+  viewerName = v;
+  localStorage.setItem('triOrderingName', v);
+  document.getElementById('viewerNameLabel').textContent = v;
+  document.getElementById('nameModal').classList.remove('open');
+});
+document.getElementById('changeNameBtn').addEventListener('click', ()=>{
+  document.getElementById('nameInput').value = viewerName;
+  document.getElementById('nameModal').classList.add('open');
+});
+
+// ---------------- Sidebar / supplier list ----------------
+function renderSupplierList(filter){
+  const f = (filter || '').toLowerCase().trim();
+  const ul = document.getElementById('supplierList');
+  ul.innerHTML = '';
+  SUPPLIERS.forEach(s=>{
+    const items = CATALOG[s];
+    let matches = true;
+    if (f){
+      const supplierMatch = s.toLowerCase().includes(f);
+      const itemMatch = items.some(it => it.description.toLowerCase().includes(f) || (it.code||'').toLowerCase().includes(f));
+      matches = supplierMatch || itemMatch;
+    }
+    if (!matches) return;
+    const li = document.createElement('li');
+    li.className = 'supplier-item' + (s === currentSupplier ? ' active' : '');
+    li.innerHTML = '<span>'+escapeHtml(s)+'</span><span class="supplier-count">'+items.length+'</span>';
+    li.addEventListener('click', ()=>{
+      selectSupplier(s);
+      if (window.innerWidth <= 860) document.getElementById('sidebar').classList.remove('open');
+    });
+    ul.appendChild(li);
+  });
+  if (!ul.children.length){
+    const li = document.createElement('li');
+    li.style.cssText = 'color:var(--sidebar-ink-soft); font-size:12.5px; padding:10px 12px;';
+    li.textContent = 'No matches.';
+    ul.appendChild(li);
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function selectSupplier(s){
+  currentSupplier = s;
+  renderSupplierList(document.getElementById('supplierSearch').value);
+  renderItemList();
+  renderCart();
+  renderSupplierContactRow();
+}
+
+function renderSupplierContactRow(){
+  const row = document.getElementById('supplierWhatsAppRow');
+  if (!currentSupplier){ row.innerHTML = ''; return; }
+  const key = supplierKey(currentSupplier);
+  const number = contacts[key] && contacts[key].whatsapp;
+  row.innerHTML = number
+    ? ('WhatsApp: <span class="mono">+' + escapeHtml(number) + '</span> <button class="price-edit-btn" data-edit-wa>change</button>')
+    : '<button class="price-edit-btn" data-edit-wa>+ add WhatsApp contact for ' + escapeHtml(currentSupplier) + '</button>';
+  row.querySelector('[data-edit-wa]').addEventListener('click', ()=>{
+    pendingWhatsAppSend = false;
+    document.getElementById('waModalSupplier').textContent = currentSupplier;
+    document.getElementById('waNumberInput').value = number || '';
+    document.getElementById('waModal').classList.add('open');
+  });
+}
+
+// ---------------- Item list ----------------
+function renderItemList(){
+  const wrap = document.getElementById('itemListWrap');
+  const titleEl = document.getElementById('supplierTitle');
+  const metaEl = document.getElementById('supplierMeta');
+  if (!currentSupplier){
+    titleEl.textContent = 'Choose a supplier';
+    metaEl.textContent = '';
+    wrap.innerHTML = '<div class="empty-note">Pick a supplier from the left to see what you\'ve ordered from them before.</div>';
+    return;
+  }
+  const items = CATALOG[currentSupplier];
+  titleEl.textContent = currentSupplier;
+  metaEl.textContent = items.length + ' item' + (items.length===1?'':'s') + ' on record';
+
+  const q = (document.getElementById('itemSearch').value || '').toLowerCase().trim();
+  const filtered = items.filter(it => !q || it.description.toLowerCase().includes(q) || (it.code||'').toLowerCase().includes(q));
+
+  if (!filtered.length){
+    wrap.innerHTML = '<div class="empty-note">No items match that search.</div>';
+    return;
+  }
+
+  let rows = '';
+  filtered.forEach((it, idx)=>{
+    const k = itemKey(currentSupplier, it);
+    const hidden = isHidden(currentSupplier, it);
+    const price = effectivePrice(currentSupplier, it);
+    rows += '<tr class="'+(hidden?'hidden-item':'')+'" data-idx="'+idx+'">'
+      + '<td><div class="item-desc">'+escapeHtml(it.description)+'</div>'
+        + (it.code ? '<div class="item-code">'+escapeHtml(it.code)+'</div>' : '')
+      + '</td>'
+      + '<td class="price-val mono" data-price-cell>'+fmtR(price)
+        + '<button class="price-edit-btn" data-edit-price>edit</button></td>'
+      + '<td><span class="hide-toggle" data-toggle-hide>'+(hidden?'unhide':'hide')+'</span></td>'
+      + '<td><div class="row-actions"><input type="number" min="0" step="0.5" value="1" class="qty-input" data-qty></input>'
+        + '<button class="add-btn" data-add>Add</button></div></td>'
+      + '</tr>';
+  });
+
+  wrap.innerHTML = '<table class="item-table"><thead><tr>'
+    + '<th>Item</th><th>Last price</th><th></th><th>Quantity</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>';
+
+  // wire events
+  const trs = wrap.querySelectorAll('tbody tr');
+  trs.forEach(tr=>{
+    const idx = parseInt(tr.getAttribute('data-idx'),10);
+    const it = filtered[idx];
+    const addBtn = tr.querySelector('[data-add]');
+    const qtyInput = tr.querySelector('[data-qty]');
+    addBtn.addEventListener('click', ()=>{
+      const qty = parseFloat(qtyInput.value);
+      if (!qty || qty <= 0) { toast('Enter a quantity first'); return; }
+      addToCart(currentSupplier, it, qty);
+    });
+    tr.querySelector('[data-toggle-hide]').addEventListener('click', ()=>{
+      setHidden(currentSupplier, it, !isHidden(currentSupplier, it));
+    });
+    tr.querySelector('[data-edit-price]').addEventListener('click', (e)=>{
+      const cell = tr.querySelector('[data-price-cell]');
+      const current = effectivePrice(currentSupplier, it);
+      cell.innerHTML = '<input type="number" step="0.01" class="price-input" value="'+(current!==null?current:'')+'"> '
+        + '<button class="price-edit-btn" data-save-price>save</button>';
+      cell.querySelector('[data-save-price]').addEventListener('click', ()=>{
+        const val = parseFloat(cell.querySelector('input').value);
+        if (!isNaN(val)) setPrice(currentSupplier, it, val);
+      });
+    });
+  });
+}
+
+document.getElementById('itemSearch').addEventListener('input', renderItemList);
+document.getElementById('supplierSearch').addEventListener('input', (e)=>renderSupplierList(e.target.value));
+
+// ---------------- Cart ----------------
+function addToCart(supplier, item, qty){
+  if (currentSupplier === null) return;
+  if (cart.length && cart[0].supplierKey !== supplier){
+    toast('Clear the current order before starting one for a different supplier');
+    return;
+  }
+  const k = itemKey(supplier, item);
+  const existing = cart.find(c => c.key === k);
+  const price = effectivePrice(supplier, item);
+  if (existing){
+    existing.qty += qty;
+  } else {
+    cart.push({key:k, supplierKey:supplier, code:item.code, description:item.description, unitPrice:price, qty:qty});
+  }
+  renderCart();
+  toast('Added ' + item.description);
+}
+
+function renderCart(){
+  const linesEl = document.getElementById('cartLines');
+  const supplierLabel = document.getElementById('cartSupplierLabel');
+  const totalRow = document.getElementById('cartTotalRow');
+  const copyBtn = document.getElementById('copyOrderBtn');
+  const clearBtn = document.getElementById('clearCartBtn');
+  const waBtn = document.getElementById('sendWhatsAppBtn');
+
+  if (!cart.length){
+    linesEl.innerHTML = '<div class="cart-empty">No items added yet.</div>';
+    supplierLabel.textContent = currentSupplier ? ('Ready for ' + currentSupplier) : 'No supplier selected';
+    totalRow.style.display = 'none';
+    copyBtn.disabled = true;
+    clearBtn.disabled = true;
+    waBtn.disabled = true;
+    return;
+  }
+  supplierLabel.textContent = cart[0].supplierKey;
+  let total = 0;
+  let html = '';
+  cart.forEach((c, i)=>{
+    const lineTotal = (c.unitPrice||0) * c.qty;
+    total += lineTotal;
+    html += '<div class="cart-line">'
+      + '<div><div class="cart-line-desc">'+escapeHtml(c.description)+'</div>'
+        + '<div class="cart-line-sub">Qty '+c.qty+' × '+fmtR(c.unitPrice)+'</div></div>'
+      + '<div class="cart-line-right"><div>'+fmtR(lineTotal)+'</div>'
+        + '<button class="cart-remove" data-remove="'+i+'">remove</button></div>'
+      + '</div>';
+  });
+  linesEl.innerHTML = html;
+  linesEl.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      cart.splice(parseInt(btn.getAttribute('data-remove'),10),1);
+      renderCart();
+    });
+  });
+  totalRow.style.display = 'flex';
+  document.getElementById('cartTotal').textContent = fmtR(total);
+  copyBtn.disabled = false;
+  clearBtn.disabled = false;
+  waBtn.disabled = false;
+}
+
+document.getElementById('clearCartBtn').addEventListener('click', ()=>{
+  cart = [];
+  renderCart();
+});
+
+// ---------------- Overrides (price / hidden) ----------------
+async function setPrice(supplier, item, price){
+  const k = itemKey(supplier, item);
+  overrides[k] = Object.assign({}, overrides[k], {price});
+  renderItemList();
+  try{ await apiSet('overrides', k, {supplier, code:item.code||'', description:item.description, price, hidden: !!(overrides[k]&&overrides[k].hidden)}); }
+  catch(e){ toast('Could not save price — try again'); }
+}
+async function setHidden(supplier, item, hidden){
+  const k = itemKey(supplier, item);
+  overrides[k] = Object.assign({}, overrides[k], {hidden});
+  renderItemList();
+  try{ await apiSet('overrides', k, {supplier, code:item.code||'', description:item.description, hidden, price: (overrides[k]&&typeof overrides[k].price==='number')?overrides[k].price:null}); }
+  catch(e){ toast('Could not save — try again'); }
+}
+
+// ---------------- Copy / submit order ----------------
+function buildOrderText(){
+  if (!cart.length) return '';
+  const supplier = cart[0].supplierKey;
+  const dateStr = new Date().toLocaleDateString('en-ZA', {year:'numeric', month:'long', day:'numeric'});
+  let lines = [];
+  lines.push('Order for ' + supplier);
+  lines.push('Date: ' + dateStr);
+  lines.push('Ordered by: ' + (viewerName || 'Unspecified'));
+  lines.push('');
+  cart.forEach(c=>{
+    const codePart = c.code ? ' (' + c.code + ')' : '';
+    lines.push('- ' + c.description + codePart + '  x ' + c.qty);
+  });
+  lines.push('');
+  lines.push('Please confirm availability and delivery.');
+  return lines.join('\n');
+}
+
+document.getElementById('copyOrderBtn').addEventListener('click', async ()=>{
+  const text = buildOrderText();
+  if (!text) return;
+  try{ await navigator.clipboard.writeText(text); toast('Order copied to clipboard'); }
+  catch(e){ toast('Copy failed — select the text manually'); }
+  document.getElementById('copyModalDesc').textContent = 'Copied to your clipboard — paste it into an email to the supplier. You can also log it below, with pricing, so the team can see it was ordered.';
+  document.getElementById('copyModalSupplier').textContent = 'Order for ' + cart[0].supplierKey;
+  document.getElementById('copyModalText').textContent = text;
+  document.getElementById('copyModal').classList.add('open');
+});
+
+// ---------------- WhatsApp contact + send ----------------
+async function saveWhatsAppNumber(supplier, number){
+  const key = supplierKey(supplier);
+  contacts[key] = {supplier, whatsapp: number};
+  renderSupplierContactRow();
+  try{ await apiSet('contacts', key, {supplier, whatsapp: number}); }
+  catch(e){ toast('Could not save WhatsApp number'); }
+}
+
+function proceedWhatsAppSend(number){
+  const text = buildOrderText();
+  if (!text) return;
+  const clean = (number || '').replace(/[^0-9]/g, '');
+  if (!clean){ toast('That WhatsApp number looks invalid'); return; }
+  const url = 'https://wa.me/' + clean + '?text=' + encodeURIComponent(text);
+  window.open(url, '_blank');
+  navigator.clipboard.writeText(text).catch(()=>{});
+  document.getElementById('copyModalDesc').textContent = 'WhatsApp should now be open with this order ready to send — it\'s also copied to your clipboard as a backup in case the message needs re-pasting. Log it below, with pricing, so the team can see it was ordered.';
+  document.getElementById('copyModalSupplier').textContent = 'Order for ' + cart[0].supplierKey;
+  document.getElementById('copyModalText').textContent = text;
+  document.getElementById('copyModal').classList.add('open');
+}
+
+document.getElementById('sendWhatsAppBtn').addEventListener('click', ()=>{
+  if (!cart.length) return;
+  const supplier = cart[0].supplierKey;
+  const key = supplierKey(supplier);
+  const number = contacts[key] && contacts[key].whatsapp;
+  if (!number){
+    pendingWhatsAppSend = true;
+    document.getElementById('waModalSupplier').textContent = supplier;
+    document.getElementById('waNumberInput').value = '';
+    document.getElementById('waModal').classList.add('open');
+    return;
+  }
+  proceedWhatsAppSend(number);
+});
+
+document.getElementById('waModalCancelBtn').addEventListener('click', ()=>{
+  pendingWhatsAppSend = false;
+  document.getElementById('waModal').classList.remove('open');
+});
+
+document.getElementById('waModalSaveBtn').addEventListener('click', async ()=>{
+  const val = document.getElementById('waNumberInput').value.trim();
+  if (!val){ toast('Enter a number first'); return; }
+  const supplier = document.getElementById('waModalSupplier').textContent;
+  await saveWhatsAppNumber(supplier, val);
+  document.getElementById('waModal').classList.remove('open');
+  toast('WhatsApp number saved');
+  if (pendingWhatsAppSend){
+    pendingWhatsAppSend = false;
+    proceedWhatsAppSend(val);
+  }
+});
+document.getElementById('copyModalCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('copyModal').classList.remove('open');
+});
+document.getElementById('copyModalLogBtn').addEventListener('click', async ()=>{
+  await submitOrder();
+  document.getElementById('copyModal').classList.remove('open');
+});
+
+async function submitOrder(){
+  if (!cart.length) return;
+  const supplier = cart[0].supplierKey;
+  let total = 0;
+  const items = cart.map(c=>{
+    const lineTotal = (c.unitPrice||0)*c.qty;
+    total += lineTotal;
+    return {code:c.code||'', description:c.description, qty:c.qty, unitPrice:c.unitPrice||0, lineTotal};
+  });
+  const doc = {
+    supplier, items, orderedBy: viewerName || 'Unspecified',
+    estTotal: total, createdAt: new Date().toISOString()
+  };
+  try{
+    await apiSet('orders', null, doc);
+    toast('Order logged');
+    refreshOrders();
+  }catch(e){ toast('Could not log order — copy it manually and try again'); return; }
+  cart = [];
+  renderCart();
+}
+
+// ---------------- History ----------------
+function renderHistory(){
+  const wrap = document.getElementById('historyList');
+  const meta = document.getElementById('historyMeta');
+  if (!orders.length){
+    wrap.innerHTML = '<div class="empty-note">No orders logged yet.</div>';
+    meta.textContent = '';
+    return;
+  }
+  meta.textContent = orders.length + ' order' + (orders.length===1?'':'s') + ' logged';
+  let html = '';
+  orders.forEach(o=>{
+    const dateStr = new Date(o.createdAt).toLocaleString('en-ZA', {dateStyle:'medium', timeStyle:'short'});
+    let itemRows = '';
+    (o.items||[]).forEach(it=>{
+      itemRows += '<div class="order-item-row"><span>'+escapeHtml(it.description)+' × '+it.qty+'</span><span>'+fmtR(it.lineTotal)+'</span></div>';
+    });
+    html += '<div class="order-card" data-id="'+o.id+'">'
+      + '<div class="order-card-head" data-toggle>'
+        + '<div><div class="order-supplier">'+escapeHtml(o.supplier)+'</div>'
+          + '<div class="order-meta">'+dateStr+' · '+escapeHtml(o.orderedBy)+'</div></div>'
+        + '<div class="order-total">'+fmtR(o.estTotal)+'</div>'
+      + '</div>'
+      + '<div class="order-items">'+itemRows+'</div>'
+      + '<div class="order-card-foot"><button class="link-danger" data-delete="'+o.id+'">delete</button></div>'
+      + '</div>';
+  });
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('[data-toggle]').forEach(head=>{
+    head.addEventListener('click', ()=>{
+      const card = head.closest('.order-card');
+      card.querySelector('.order-items').classList.toggle('open');
+    });
+  });
+  wrap.querySelectorAll('[data-delete]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if (!confirm('Delete this order from the log?')) return;
+      const id = btn.getAttribute('data-delete');
+      try{ await apiDelete('orders', id); orders = orders.filter(o=>o.id!==id); renderHistory(); }
+      catch(err){ toast('Could not delete'); }
+    });
+  });
+}
+
+// ---------------- Tabs ----------------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.getAttribute('data-view');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+target).classList.add('active');
+  });
+});
+document.getElementById('mobileToggle').addEventListener('click', ()=>{
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+// ---------------- Sync status ----------------
+function setSync(ok, label){
+  const el = document.getElementById('syncStatus');
+  el.className = 'status-pill ' + (ok ? 'ok' : 'warn');
+  el.innerHTML = '<span class="dot"></span><span>'+label+'</span>';
+}
+
+// ---------------- Data refresh (polling) ----------------
+async function refreshOverrides(){
+  try{
+    const items = await apiList('overrides');
+    const next = {};
+    items.forEach(it=>{ next[it.key] = it.data; });
+    overrides = next;
+    renderItemList();
+    setSync(true, 'Synced with the team');
+  }catch(e){ setSync(false, 'Sync issue — retrying'); }
+}
+async function refreshOrders(){
+  try{
+    const items = await apiList('orders');
+    orders = items
+      .map(it=>Object.assign({id: it.key}, it.data))
+      .sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+    renderHistory();
+    setSync(true, 'Synced with the team');
+  }catch(e){ setSync(false, 'Sync issue — retrying'); }
+}
+async function refreshContacts(){
+  try{
+    const items = await apiList('contacts');
+    const next = {};
+    items.forEach(it=>{ next[it.key] = it.data; });
+    contacts = next;
+    renderSupplierContactRow();
+  }catch(e){ /* leave last-known contacts in place */ }
+}
+async function refreshAll(){
+  await Promise.all([refreshOverrides(), refreshOrders(), refreshContacts()]);
+}
+
+// ---------------- Init ----------------
+async function init(){
+  ensureName();
+  renderSupplierList('');
+  renderItemList();
+  renderCart();
+  renderHistory();
+
+  setSync(false, 'Connecting…');
+  await refreshAll();
+  setInterval(refreshAll, 15000);
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.visibilityState === 'visible') refreshAll();
+  });
+}
+
+init();
+</script>
+</body>
+</html>
