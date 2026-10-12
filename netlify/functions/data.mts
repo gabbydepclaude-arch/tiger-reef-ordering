@@ -22,8 +22,10 @@ export default async (req: Request, context: Context) => {
   const store = getStore(storeName);
 
   if (req.method !== "GET" && KEYED_WRITE_STORES.includes(storeName)) {
-    const expected = Netlify.env.get("MBC_SYNC_KEY") || "";
-    if (!expected || req.headers.get("x-sync-key") !== expected) {
+    // trimmed, so a stray space or line break copied with the password doesn't lock the Prep Tool out
+    const expected = (Netlify.env.get("MBC_SYNC_KEY") || "").trim();
+    const given = (req.headers.get("x-sync-key") || "").trim();
+    if (!expected || given !== expected) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
