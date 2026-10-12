@@ -1,7 +1,11 @@
 import type { Context, Config } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 
-const STORES = ["orders", "overrides", "contacts"];
+const STORES = ["orders", "overrides", "contacts", "links", "mbc"];
+// "mbc" holds the ingredient usage sent by the MBC Prep Tool. Anyone can read it,
+// but only the Prep Tool can change it: it must send the secret MBC_SYNC_KEY
+// (set under Site configuration > Environment variables on Netlify).
+const KEYED_WRITE_STORES = ["mbc"];
 
 export default async (req: Request, context: Context) => {
   const url = new URL(req.url);
@@ -16,6 +20,16 @@ export default async (req: Request, context: Context) => {
   }
 
   const store = getStore(storeName);
+
+  if (req.method !== "GET" && KEYED_WRITE_STORES.includes(storeName)) {
+    const expected = Netlify.env.get("MBC_SYNC_KEY") || "";
+    if (!expected || req.headers.get("x-sync-key") !== expected) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
 
   try {
     if (req.method === "GET") {

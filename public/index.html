@@ -40,6 +40,20 @@
     -webkit-font-smoothing:antialiased;
   }
   .mono{font-family:'Roboto Mono', 'SFMono-Regular', Consolas, monospace;}
+  /* ---------- Bakery usage (from the MBC Prep Tool) ---------- */
+  .usage-line{font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.35;}
+  .usage-line b{color:var(--ink);}
+  .usage-suggest{display:inline-block;background:var(--amber-dim);color:#7a4a14;border-radius:6px;padding:1px 7px;font-weight:700;margin-left:4px;}
+  .link-chip{background:none;border:1px dashed var(--line);border-radius:6px;font-size:12px;color:var(--ink-soft);padding:1px 7px;cursor:pointer;margin-top:3px;}
+  .link-chip:hover{border-color:var(--amber);color:var(--ink);}
+  .use-btn{background:var(--amber);color:#fff;border:0;border-radius:6px;font-size:12px;font-weight:700;padding:2px 8px;cursor:pointer;margin-left:4px;}
+  .cover-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);margin:-4px 0 10px;flex-wrap:wrap;}
+  .cover-row select{padding:4px 6px;border:1px solid var(--line);border-radius:6px;font:inherit;}
+  .usage-table{width:100%;border-collapse:collapse;background:var(--paper-raised);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);font-size:14px;}
+  .usage-table th,.usage-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;}
+  .usage-table th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);}
+  .usage-table td.num{text-align:right;white-space:nowrap;font-family:'Roboto Mono', Consolas, monospace;}
+  .modal select,.modal input[type=number]{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;margin-bottom:10px;}
 
   /* ---------- Shell ---------- */
   .shell{
@@ -288,6 +302,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-view="order">Order</button>
         <button class="tab-btn" data-view="history">History</button>
+        <button class="tab-btn" data-view="usage">Bakery usage</button>
       </div>
       <div class="topbar-spacer"></div>
       <div class="status-pill warn" id="syncStatus"><span class="dot"></span><span>Connecting…</span></div>
@@ -305,6 +320,7 @@
         <div class="search-row">
           <input type="text" id="itemSearch" placeholder="Filter items…">
         </div>
+        <div class="cover-row" id="coverRow">Suggest enough for <select id="coverDays"><option value="3">3 days</option><option value="5">5 days</option><option value="7" selected>7 days</option><option value="10">10 days</option><option value="14">14 days</option></select> of baking <span id="usageAge"></span></div>
         <div class="content-grid">
           <div id="itemListWrap"><div class="empty-note">Pick a supplier from the left to see what you've ordered from them before.</div></div>
 
@@ -323,6 +339,16 @@
             <div class="cart-note">Prices here are for your own tracking and are saved with the order — the message sent to the supplier lists only items and quantities, no pricing.</div>
           </div>
         </div>
+      </div>
+
+      <!-- Bakery usage view -->
+      <div class="view" id="view-usage">
+        <div class="panel-header">
+          <h1>Bakery usage</h1>
+          <div class="meta" id="usageMeta"></div>
+        </div>
+        <p style="color:var(--ink-soft);font-size:14px;margin-top:-4px;">Worked out by the MBC Prep Tool from the last 4 weeks of orders and the recipes. Link each supplier item to the ingredient it supplies (the "link to bakery ingredient" button under the item) and the Order screen suggests how many to order. Suggestions don't know what's already on the shelf - take that off.</p>
+        <div id="usageList"><div class="empty-note">No usage received from the Prep Tool yet.</div></div>
       </div>
 
       <!-- History view -->
@@ -376,6 +402,26 @@
   </div>
 </div>
 
+<!-- Link to bakery ingredient modal -->
+<div class="modal-overlay" id="linkModal">
+  <div class="modal">
+    <h2>Link to bakery ingredient</h2>
+    <p><strong id="linkModalItem"></strong><br>Which recipe ingredient is this, and how much is in ONE of these (one bag, box, tray...)?</p>
+    <label style="font-size:13px;color:var(--ink-soft);">Ingredient</label>
+    <select id="linkIngredient"></select>
+    <label style="font-size:13px;color:var(--ink-soft);">Amount in one unit</label>
+    <div style="display:flex;gap:8px;">
+      <input type="number" id="linkAmount" min="0" step="0.001" placeholder="e.g. 12.5" style="flex:1;">
+      <select id="linkUnit" style="width:110px;"><option value="kg">kg</option><option value="g">g</option><option value="L">litres</option><option value="ml">ml</option><option value="each">each (eggs)</option></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="linkRemoveBtn">Remove link</button>
+      <button class="btn-secondary" id="linkCancelBtn">Cancel</button>
+      <button class="btn-primary" id="linkSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -389,6 +435,9 @@ let currentSupplier = null;
 let viewerName = localStorage.getItem('triOrderingName') || '';
 let orders = [];          // loaded from the API
 let pendingWhatsAppSend = false;
+let links = {};           // itemKey -> {supplier, code, description, ingredient, amount, unit}
+let usage = null;         // ingredient usage sent by the MBC Prep Tool
+let linkTarget = null;    // {supplier, item} being linked
 
 const API_BASE = '/api/data';
 
@@ -557,6 +606,7 @@ function renderItemList(){
     rows += '<tr class="'+(hidden?'hidden-item':'')+'" data-idx="'+idx+'">'
       + '<td><div class="item-desc">'+escapeHtml(it.description)+'</div>'
         + (it.code ? '<div class="item-code">'+escapeHtml(it.code)+'</div>' : '')
+        + usageLineHTML(currentSupplier, it)
       + '</td>'
       + '<td class="price-val mono" data-price-cell>'+fmtR(price)
         + '<button class="price-edit-btn" data-edit-price>edit</button></td>'
@@ -582,6 +632,10 @@ function renderItemList(){
       if (!qty || qty <= 0) { toast('Enter a quantity first'); return; }
       addToCart(currentSupplier, it, qty);
     });
+    const linkBtn = tr.querySelector('[data-link]');
+    if (linkBtn) linkBtn.addEventListener('click', ()=> openLinkModal(currentSupplier, it));
+    const useBtn = tr.querySelector('[data-use]');
+    if (useBtn) useBtn.addEventListener('click', ()=>{ qtyInput.value = useBtn.getAttribute('data-use'); qtyInput.focus(); });
     tr.querySelector('[data-toggle-hide]').addEventListener('click', ()=>{
       setHidden(currentSupplier, it, !isHidden(currentSupplier, it));
     });
@@ -897,8 +951,151 @@ async function refreshContacts(){
   }catch(e){ /* leave last-known contacts in place */ }
 }
 async function refreshAll(){
+  await Promise.all([refreshLinks(), refreshUsage()]);
   await Promise.all([refreshOverrides(), refreshOrders(), refreshContacts()]);
+  renderUsage();
 }
+
+
+// ---------------- Bakery usage (from the MBC Prep Tool) ----------------
+const UNIT_TO_BASE = {kg:1000, g:1, L:1000, ml:1, each:1};
+function baseUnitLabel(u){ return u === 'each' ? '' : u; }
+function fmtAmount(v, unit){
+  if (unit === 'each') return Math.round(v) + ' each';
+  if (v >= 1000) return (v/1000).toLocaleString('en-ZA', {maximumFractionDigits:1}) + (unit === 'ml' ? ' L' : ' kg');
+  return Math.round(v) + ' ' + unit;
+}
+function lastsTxt(d){
+  if (!isFinite(d)) return '—';
+  if (d < 1.5) return Math.max(1, Math.round(d * 10) / 10) + ' day';
+  if (d < 21) return Math.round(d) + ' days';
+  return Math.round(d / 7) + ' weeks';
+}
+function coverDays(){ return parseInt(document.getElementById('coverDays').value, 10) || 7; }
+function linkFor(supplier, item){ return links[itemKey(supplier, item)] || null; }
+function usageLineHTML(supplier, item){
+  const ln = linkFor(supplier, item);
+  if (!ln){
+    return usage ? '<button class="link-chip" data-link>link to bakery ingredient</button>' : '';
+  }
+  const u = usage && usage.ingredients && usage.ingredients[ln.ingredient];
+  const per = ln.amount * (UNIT_TO_BASE[ln.unit] || 1);
+  let html = '<div class="usage-line">🔗 <b>' + escapeHtml(ln.ingredient) + '</b> · ' + ln.amount + ' ' + escapeHtml(ln.unit) + ' each';
+  if (u && per > 0){
+    const days = coverDays();
+    const need = u.per_week / 7 * days;
+    const units = need / per;
+    const suggest = Math.max(0, Math.ceil(units - 0.05));
+    html += '<br>Bakery uses ~<b>' + fmtAmount(u.per_week, u.unit) + '/week</b>'
+      + (u.today ? ' · today\'s orders ' + fmtAmount(u.today, u.unit) : '')
+      + ' · one lasts ~' + lastsTxt(per / (u.per_week / 7))
+      + '<br>For ' + days + ' days: ' + units.toLocaleString('en-ZA', {maximumFractionDigits: units < 1 ? 2 : 1})
+      + ' → <span class="usage-suggest">order ' + suggest + '</span>'
+      + (suggest > 0 ? '<button class="use-btn" data-use="' + suggest + '">use</button>' : '');
+  } else if (usage){
+    html += '<br>No recent bakery use of ' + escapeHtml(ln.ingredient) + '.';
+  }
+  return html + ' <button class="link-chip" data-link>change</button></div>';
+}
+function guessIngredient(desc){
+  const d = ' ' + desc.toLowerCase().replace(/[^a-z ]/g, ' ') + ' ';
+  const names = Object.keys((usage && usage.ingredients) || {});
+  let best = '';
+  names.forEach(n => { if (d.includes(' ' + n + ' ') && n.length > best.length) best = n; });
+  if (!best && /\begg/.test(d)) best = names.find(n => n === 'eggs') || '';
+  if (!best && /\bmarg|\bbutter\b|\bwooden spoon/.test(d)) best = names.find(n => n === 'margarine') || '';
+  if (!best && /\bflour/.test(d)) best = names.find(n => n === 'flour') || '';
+  return best;
+}
+function guessAmount(desc){
+  const m = desc.toLowerCase().match(/(\d+(?:[.,]\d+)?)\s*(kg|g|l|lt|ml)\b/);
+  if (!m) return null;
+  const unit = {kg:'kg', g:'g', l:'L', lt:'L', ml:'ml'}[m[2]];
+  return {amount: parseFloat(m[1].replace(',', '.')), unit};
+}
+function openLinkModal(supplier, item){
+  linkTarget = {supplier, item};
+  const ln = linkFor(supplier, item);
+  const names = Object.keys((usage && usage.ingredients) || {}).sort();
+  if (ln && !names.includes(ln.ingredient)) names.unshift(ln.ingredient);
+  const pick = ln ? ln.ingredient : guessIngredient(item.description);
+  document.getElementById('linkModalItem').textContent = supplier + ' — ' + item.description;
+  document.getElementById('linkIngredient').innerHTML = '<option value="">— choose —</option>' + names.map(n =>
+    '<option value="' + escapeHtml(n) + '"' + (n === pick ? ' selected' : '') + '>' + escapeHtml(n) + '</option>').join('');
+  const g = ln ? {amount: ln.amount, unit: ln.unit} : guessAmount(item.description);
+  document.getElementById('linkAmount').value = g ? g.amount : '';
+  document.getElementById('linkUnit').value = g ? g.unit : 'kg';
+  document.getElementById('linkRemoveBtn').style.display = ln ? '' : 'none';
+  document.getElementById('linkModal').classList.add('open');
+}
+document.getElementById('linkCancelBtn').addEventListener('click', ()=> document.getElementById('linkModal').classList.remove('open'));
+document.getElementById('linkSaveBtn').addEventListener('click', async ()=>{
+  if (!linkTarget) return;
+  const ingredient = document.getElementById('linkIngredient').value;
+  const amount = parseFloat(document.getElementById('linkAmount').value);
+  const unit = document.getElementById('linkUnit').value;
+  if (!ingredient){ toast('Choose the ingredient'); return; }
+  if (!amount || amount <= 0){ toast('Enter how much is in one unit'); return; }
+  const {supplier, item} = linkTarget;
+  const k = itemKey(supplier, item);
+  links[k] = {supplier, code: item.code || '', description: item.description, ingredient, amount, unit, by: viewerName || ''};
+  document.getElementById('linkModal').classList.remove('open');
+  renderItemList(); renderUsage();
+  try{ await apiSet('links', k, links[k]); toast('Linked to ' + ingredient); }
+  catch(e){ toast('Could not save the link — try again'); }
+});
+document.getElementById('linkRemoveBtn').addEventListener('click', async ()=>{
+  if (!linkTarget) return;
+  const k = itemKey(linkTarget.supplier, linkTarget.item);
+  delete links[k];
+  document.getElementById('linkModal').classList.remove('open');
+  renderItemList(); renderUsage();
+  try{ await apiDelete('links', k); toast('Link removed'); } catch(e){ toast('Could not remove — try again'); }
+});
+
+function renderUsage(){
+  const wrap = document.getElementById('usageList');
+  const meta = document.getElementById('usageMeta');
+  const age = document.getElementById('usageAge');
+  if (!usage || !usage.ingredients){
+    wrap.innerHTML = '<div class="empty-note">No usage received from the MBC Prep Tool yet. In the Prep Tool: ⚙ Snapshot &amp; Printer settings → Supplier app address and sync key → Send ingredient usage now.</div>';
+    meta.textContent = ''; if (age) age.textContent = '';
+    return;
+  }
+  const when = new Date(usage.generatedAt);
+  const stale = (Date.now() - when.getTime()) > 36 * 3600 * 1000;
+  const whenTxt = when.toLocaleString('en-ZA', {dateStyle:'medium', timeStyle:'short'});
+  meta.textContent = 'Last 4 weeks (' + usage.bake_days + ' baking days) · updated ' + whenTxt;
+  if (age) age.innerHTML = stale ? '<span style="color:var(--bad);">· bakery usage is out of date (' + escapeHtml(whenTxt) + ') - is the Prep Tool running?</span>' : '';
+  const byIng = {};
+  Object.values(links).forEach(l => { (byIng[l.ingredient] = byIng[l.ingredient] || []).push(l); });
+  const rows = Object.entries(usage.ingredients).sort((a,b) => b[1].per_week - a[1].per_week).map(([n, u]) => {
+    const ls = byIng[n] || [];
+    return '<tr><td><b>' + escapeHtml(n) + '</b></td><td class="num">' + fmtAmount(u.per_week, u.unit) + '</td><td class="num">' + (u.today ? fmtAmount(u.today, u.unit) : '—') + '</td><td>'
+      + (ls.length ? ls.map(l => escapeHtml(l.supplier) + ': ' + escapeHtml(l.description) + ' (' + l.amount + ' ' + escapeHtml(l.unit) + ')').join('<br>') : '<span style="color:var(--bad);">not linked to a supplier item yet</span>')
+      + '</td></tr>';
+  }).join('');
+  wrap.innerHTML = '<table class="usage-table"><thead><tr><th>Ingredient</th><th>Per week</th><th>Today\'s orders</th><th>Supplier item(s)</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+async function refreshLinks(){
+  try{
+    const items = await apiList('links');
+    const next = {};
+    items.forEach(it=>{ if (it.data) next[it.key] = it.data; });
+    links = next;
+  }catch(e){ /* keep last-known links */ }
+}
+async function refreshUsage(){
+  try{
+    const res = await fetch(API_BASE + '?store=mbc&key=usage');
+    if (res.ok){ const j = await res.json(); usage = j.data || null; }
+  }catch(e){ /* keep last-known usage */ }
+}
+(function(){
+  const sel = document.getElementById('coverDays');
+  try{ const v = localStorage.getItem('triCoverDays'); if (v) sel.value = v; }catch(e){}
+  sel.addEventListener('change', ()=>{ try{ localStorage.setItem('triCoverDays', sel.value); }catch(e){} renderItemList(); });
+})();
 
 // ---------------- Init ----------------
 async function init(){
